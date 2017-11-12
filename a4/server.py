@@ -6,6 +6,8 @@ import string
 import hashlib
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
+
 
 
 def timestamp():
@@ -23,15 +25,14 @@ def readfile(conn, filename):
         conn.close()
     #send file by block
     while True:
-
-        data = fd.read(1024)
+        data = fd.read(16)
         if data == b"":
             break;
         if cipher == "aes128":
             data= encrypt_data(sk,iv,data)
         elif cipher == "aes256":
-            data= encrypt_data(sk,iv,data)
-
+            sk256 = sk*2
+            data= encrypt_data(sk256,iv,data)
         conn.send(data)
 
     return;
@@ -52,8 +53,9 @@ def writefile(conn,filename):
             break;
         if cipher == "aes128":
             data = decrypt_data(sk,iv,data)
-        elif cipher == "aes123":
-            data = decrypt_data(sk,iv,data)
+        elif cipher == "aes256":
+            sk256 = sk*2
+            data = decrypt_data(sk256,iv,data)
 
         fd.write(data);
 
@@ -101,20 +103,28 @@ def new_connections(conn):
     #get the cipher type and nonce
     cipher, nonce = msg.split(",")
     #check for cipher compatibility
-    sk = secret_key+nonce+"SK"
-    iv = secret_key+nonce+"IV"
-    if cipher == "aes128" or cipher =="aes256":
-        sk = hashlib.sha256(sk.encode("utf-8")).hexdigest()
-        iv = hashlib.sha256(iv.encode("utf-8")).hexdigest()
-    elif cipher == "null":
-        pass
+    key = secret_key+nonce+"SK"
+    vector = secret_key+nonce+"IV"
+
+
+    sk = hashlib.sha256(key.encode("utf-8")).digest()
+    sk_p = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    iv = (hashlib.sha256(vector.encode("utf-8")).digest())[:16]
+    iv_p = (hashlib.sha256(vector.encode("utf-8")).hexdigest())
+
     print ("%s: new connection from %s cipher=%s" %(timestamp(),str(addr),cipher))
     print ("%s: nonce=%s" %(timestamp(), nonce))
-    print ("%s: IV=%s" %(timestamp(),iv))
-    print ("%s: SK=%s" %(timestamp(),sk))
+    print ("%s: IV=%s" %(timestamp(),iv_p))
+    print ("%s: SK=%s" %(timestamp(),sk_p))
     return (cipher, sk, iv);
 
 def encrypt_data(sk,iv,data):
+    padder = padding.PKCS7(128).padder()
+
+    print (len(data))
+    if len(data) < 16:
+        data = padder.update(data) + padder.finalize()
+        print (data)
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     encryptor = cip.encryptor()
     ct = encryptor.update(data) + encryptor.finalize()
@@ -139,6 +149,7 @@ except:
     sys.exit()
 
 try:
+    unpadder = padding.PKCS7(128).unpadder()
     backend =default_backend()
     s = socket_init('',port)
     while True:
