@@ -3,7 +3,9 @@ import sys
 import random
 import string
 import hashlib
-from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+
 
 try:
     command = sys.argv[1]
@@ -66,7 +68,32 @@ def downloadfile(conn):
 
     return;
 
+def encrypt_data(sk,iv,msg):
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    encryptor = cip.encryptor()
+    ct = encryptor.update(msg.encode()) + encryptor.finalize()
+    return ct;
+
+def decrypt_data(sk, iv, ct):
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    decryptor = cip.decryptor()
+    msg = decryptor.update(ct) +decryptor.finalize()
+    return msg;
+
+#===============================================================================
+#setup socket
 s = socket_init(hostname,port)
+#setup sk,iv
+sk = secret_key+nonce()+"SK"
+iv = secret_key+nonce()+"IV"
+if cipher == "aes128" or cipher =="aes256":
+    sk = hashlib.sha256(sk.encode("utf-8")).hexdigest()
+    iv = hashlib.sha256(iv.encode("utf-8")).hexdigest()
+elif cipher == "null":
+    pass
+else:
+    sys.stderr.write("selected cipher is not supported")
+    sys.exit()
 #send cipher and nonce
 s.send(str.encode(cipher+","+nonce()))
 #complete the challenge
@@ -75,7 +102,7 @@ if Authentication_challenge(s) == True:
     s.send(str.encode(command+','+filename))
     #getting ack
     data = s.recv(64).decode("utf-8")
-    if data == "OK": 
+    if data == "OK":
         sys.stderr.write(data)
         if command =="write":
             uploadfile(s)

@@ -2,16 +2,11 @@ import socket
 import sys
 import datetime
 import random
+import string
 import hashlib
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-try:
-    port = int(sys.argv[1])
-    secret_key = sys.argv[2]
-except:
-    print ("Invalid arguments: server.py [port] [key]")
-    sys.exit()
 
 def timestamp():
     return datetime.datetime.now().strftime("%H:%M:%S");
@@ -32,6 +27,11 @@ def readfile(conn, filename):
         data = fd.read(1024)
         if data == b"":
             break;
+        if cipher == "aes128":
+            data= encrypt_data(sk,iv,data)
+        elif cipher == "aes256":
+            data= encrypt_data(sk,iv,data)
+
         conn.send(data)
 
     return;
@@ -50,6 +50,11 @@ def writefile(conn,filename):
         data = conn.recv(1024)
         if not data:
             break;
+        if cipher == "aes128":
+            data = decrypt_data(sk,iv,data)
+        elif cipher == "aes123":
+            data = decrypt_data(sk,iv,data)
+
         fd.write(data);
 
     print("%s: status: success" %timestamp())
@@ -96,27 +101,42 @@ def new_connections(conn):
     #get the cipher type and nonce
     cipher, nonce = msg.split(",")
     #check for cipher compatibility
-    sk = 0
-    iv = 0
-    if cipher == "aes128" or cipher "aes256":
-        sk = hashlib.sha256(secret_key+nonce+"IV")
-        iv = hashlib.sha256(secret_key+nonce+"SK")
+    sk = secret_key+nonce+"SK"
+    iv = secret_key+nonce+"IV"
+    if cipher == "aes128" or cipher =="aes256":
+        sk = hashlib.sha256(sk.encode("utf-8")).hexdigest()
+        iv = hashlib.sha256(iv.encode("utf-8")).hexdigest()
     elif cipher == "null":
         pass
     print ("%s: new connection from %s cipher=%s" %(timestamp(),str(addr),cipher))
     print ("%s: nonce=%s" %(timestamp(), nonce))
     print ("%s: IV=%s" %(timestamp(),iv))
     print ("%s: SK=%s" %(timestamp(),sk))
-    return (sk, iv);
+    return (cipher, sk, iv);
 
-def encrypt_data(msg):
-    digest =""
-    return digest;
+def encrypt_data(sk,iv,data):
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    encryptor = cip.encryptor()
+    ct = encryptor.update(data) + encryptor.finalize()
+    return ct;
 
-def decrypt_data(digest):
-    msg =""
-
+def decrypt_data(sk, iv, ct):
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    decryptor = cip.decryptor()
+    msg = decryptor.update(ct) +decryptor.finalize()
     return msg;
+
+
+
+#===============================================================================
+
+#arguments check
+try:
+    port = int(sys.argv[1])
+    secret_key = sys.argv[2]
+except:
+    print ("Invalid arguments: server.py [port] [key]")
+    sys.exit()
 
 try:
     backend =default_backend()
@@ -124,7 +144,7 @@ try:
     while True:
         #accept new connection
         conn,addr = s.accept()
-        sk, iv = new_connections(conn)
+        cipher, sk, iv = new_connections(conn)
         if Authentication(conn):
             #get the command
             data = conn.recv(1024)
@@ -140,5 +160,5 @@ try:
 
         conn.close()
         print ("%s: connection with %s ended" %(timestamp(), str(addr)))
-except ValueError:
-    print("boom!")
+except Exception as e:
+    print(e)
