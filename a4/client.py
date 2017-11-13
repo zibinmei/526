@@ -8,14 +8,13 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
 
-
+#start a socket
 def socket_init(host,port):
     client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     client.connect((host,port))
     return client;
-
-
+#do challenge
 def Authentication_challenge(conn):
     #get challenge
     challenge = conn.recv(1024).decode("utf-8")
@@ -34,7 +33,7 @@ def Authentication_challenge(conn):
     else:
         status = False
     return status;
-
+#upload to write
 def uploadfile(conn):
     #send file by block
     while True:
@@ -52,7 +51,7 @@ def uploadfile(conn):
 
 
     return;
-
+#download readed
 def downloadfile(conn):
 
     while True:
@@ -115,7 +114,7 @@ def data_unpadder(padded_data):
             pass
     data = bytes(temp)
     return data;
-
+#generate keys
 def key_init ():
     if cipher not in ["aes128","aes256","null"]:
         sys.stderr.write("selected cipher is not supported")

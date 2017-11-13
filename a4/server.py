@@ -9,10 +9,10 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
 
-
+#get current time
 def timestamp():
     return datetime.datetime.now().strftime("%H:%M:%S");
-
+#do read operation
 def readfile(conn, filename):
 
     print("%s: command:read, filename:%s" %(timestamp(),filename))
@@ -38,7 +38,7 @@ def readfile(conn, filename):
         conn.send(data)
 
     return;
-
+#do write operation
 def writefile(conn,filename):
 
     print("%s: command:write, filename:%s" %(timestamp(),filename))
@@ -67,7 +67,6 @@ def writefile(conn,filename):
     print("%s: status: success" %timestamp())
     conn.close();
     return;
-
 #socket setup
 def socket_init(host,port):
     server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -77,7 +76,7 @@ def socket_init(host,port):
     print ("Listening on port %d" %port)
     print ("Using sercret key: %s" %secret_key)
     return server;
-
+#do Authentication
 def Authentication(conn):
     #send challenge
     status = False;
@@ -102,6 +101,7 @@ def Authentication(conn):
         pass
     conn.send(str(status).encode())
     return status;
+#get new connection
 def new_connections(conn):
     data = conn.recv(1024)
     msg = data.decode('utf-8').rstrip()
@@ -141,8 +141,7 @@ def encrypt_data(sk,iv,data):
     old_data = data
     if len(data) < 16:
         data = data_padder(data)
-    if old_data != data:
-        print ("diff: %s| %s" %(old_data,data))
+
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     encryptor = cip.encryptor()
     ct = encryptor.update(data) + encryptor.finalize()
@@ -197,30 +196,31 @@ except:
 try:
     backend =default_backend()
     s = socket_init('',port)
-    while True:
-        try :
-            #accept new connection
-            conn,addr = s.accept()
-            cipher, sk, iv = new_connections(conn)
-            if Authentication(conn):
-                #get the command
-                data = conn.recv(1024)
-                operation,filename = data.decode('utf-8').rstrip().split(',')
-                if operation == "write":
-                    writefile(conn,filename)
-                elif operation == "read":
-                    readfile(conn,filename)
-                else:
-                    conn.send(str.encode("operation not supported!"))
-            else:
-                print ("%s: Error - Authentication fail" %timestamp())
-
-            conn.close()
-            print ("%s: connection with %s ended" %(timestamp(), str(addr)))
-        except Exception as e:
-            print (e)
-            conn.close()
-            print ("%s: connection with %s ended" %(timestamp(), str(addr)))
-            continue;
 except Exception as e:
     print(e)
+
+while True:
+    try :
+        #accept new connection
+        conn,addr = s.accept()
+        cipher, sk, iv = new_connections(conn)
+        if Authentication(conn):
+            #get the command
+            data = conn.recv(1024)
+            operation,filename = data.decode('utf-8').rstrip().split(',')
+            if operation == "write":
+                writefile(conn,filename)
+            elif operation == "read":
+                readfile(conn,filename)
+            else:
+                conn.send(str.encode("operation not supported!"))
+        else:
+            raise Exception("%s: Error - Authentication fail" %timestamp())
+
+        conn.close()
+        print ("%s: connection with %s ended" %(timestamp(), str(addr)))
+    except Exception as e:
+        print (e)
+        conn.close()
+        print ("%s: connection with %s ended" %(timestamp(), str(addr)))
+        continue;
