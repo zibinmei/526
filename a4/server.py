@@ -14,49 +14,54 @@ def timestamp():
     return datetime.datetime.now().strftime("%H:%M:%S");
 
 def readfile(conn, filename):
-    #ack the process
-    conn.send(str.encode("OK"))
+
     print("%s: command:read, filename:%s" %(timestamp(),filename))
     try:
         fd = open(filename, "rb")
     except:
-        print ("open %s failed" %filename)
-        conn.send(str.encode("no such file, %s" %filename))
+        print ("%s: open %s failed" %(timestamp(),filename))
+        conn.send(str.encode("Error: File %s does not exist" %filename))
         conn.close()
+        return;
+
+    #ack the process
+    conn.send(str.encode("OK"))
     #send file by block
     while True:
         data = fd.read(16)
         if data == b"":
             break;
-        if cipher == "aes128":
+        if cipher == "aes128" or cipher == "aes256":
             data= encrypt_data(sk,iv,data)
-        elif cipher == "aes256":
-            sk256 = sk*2
-            data= encrypt_data(sk256,iv,data)
+        else:
+            pass
         conn.send(data)
 
     return;
 
 def writefile(conn,filename):
-    #ack the process
-    conn.send(str.encode("OK"))
+
     print("%s: command:write, filename:%s" %(timestamp(),filename))
     try:
         fd = open(filename,"wb")
     except:
-        print ("create file error")
+        print ("%s: Error: create file %s failed" %(timestamp(),filename))
+        conn.send(str.encode("Error: can not create file, %s" %filename))
         conn.close()
+        return;
+
+    #ack the process
+    conn.send(str.encode("OK"))
     #write file by block
     while True:
-        data = conn.recv(1024)
+        data = conn.recv(16)
+
         if not data:
             break;
-        if cipher == "aes128":
+        if cipher == "aes128" or cipher == "aes256":
             data = decrypt_data(sk,iv,data)
-        elif cipher == "aes256":
-            sk256 = sk*2
-            data = decrypt_data(sk256,iv,data)
-
+        else:
+            pass
         fd.write(data);
 
     print("%s: status: success" %timestamp())
@@ -102,29 +107,42 @@ def new_connections(conn):
     msg = data.decode('utf-8').rstrip()
     #get the cipher type and nonce
     cipher, nonce = msg.split(",")
+    print ("%s: new connection from %s cipher=%s" %(timestamp(),str(addr),cipher))
+
     #check for cipher compatibility
     key = secret_key+nonce+"SK"
     vector = secret_key+nonce+"IV"
 
-
-    sk = hashlib.sha256(key.encode("utf-8")).digest()
-    sk_p = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    sk256 = hashlib.sha256(key.encode("utf-8")).digest()
+    sk128 = (hashlib.sha256(key.encode("utf-8")).digest()) [:16]
     iv = (hashlib.sha256(vector.encode("utf-8")).digest())[:16]
-    iv_p = (hashlib.sha256(vector.encode("utf-8")).hexdigest())
+    iv_p = (hashlib.sha256(vector.encode("utf-8")).hexdigest()) [:32]
+    sk_p = 0
+    if cipher == "aes128":
+        sk = sk128
+        sk_p = (hashlib.sha256(key.encode("utf-8")).hexdigest())[:32]
+    elif cipher == "aes256":
+        sk = sk256
+        sk_p = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    elif cipher == "null":
+        sk = 0
+        iv = 0
+        iv_p = 0
 
-    print ("%s: new connection from %s cipher=%s" %(timestamp(),str(addr),cipher))
+    else:
+        raise Exception("%s: Error - unsupported cipher" %timestamp())
     print ("%s: nonce=%s" %(timestamp(), nonce))
     print ("%s: IV=%s" %(timestamp(),iv_p))
     print ("%s: SK=%s" %(timestamp(),sk_p))
     return (cipher, sk, iv);
 
 def encrypt_data(sk,iv,data):
-    padder = padding.PKCS7(128).padder()
-
-    print (len(data))
+    #init padding
+    old_data = data
     if len(data) < 16:
-        data = padder.update(data) + padder.finalize()
-        print (data)
+        data = data_padder(data)
+    if old_data != data:
+        print ("diff: %s| %s" %(old_data,data))
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     encryptor = cip.encryptor()
     ct = encryptor.update(data) + encryptor.finalize()
@@ -133,10 +151,38 @@ def encrypt_data(sk,iv,data):
 def decrypt_data(sk, iv, ct):
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     decryptor = cip.decryptor()
-    msg = decryptor.update(ct) +decryptor.finalize()
+    data = decryptor.update(ct) +decryptor.finalize()
+    #unpadd data
+    msg = data_unpadder(data)
     return msg;
 
+def data_padder (data):
+    padded_data = bytearray(data)
+    for x in range(len(data),16):
+        padded_data.append(16-len(data))
+    result = bytes(padded_data)
+    return result;
 
+def data_unpadder(padded_data):
+    temp =bytearray(padded_data)
+    padding_counts = 0
+    if ( 0 < temp [15] < 16 ):
+        for x in range(15,0,-1):
+            if temp[x] == temp[15]:
+                padding_counts += 1
+            else:
+                break;
+        if padding_counts == temp[15]:
+            for x in range(15,-1,-1):
+                if temp[x] == 255:
+                    del temp[x]
+                else:
+                    break;
+
+        else:
+            pass
+    data = bytes(temp)
+    return data;
 
 #===============================================================================
 
@@ -149,27 +195,32 @@ except:
     sys.exit()
 
 try:
-    unpadder = padding.PKCS7(128).unpadder()
     backend =default_backend()
     s = socket_init('',port)
     while True:
-        #accept new connection
-        conn,addr = s.accept()
-        cipher, sk, iv = new_connections(conn)
-        if Authentication(conn):
-            #get the command
-            data = conn.recv(1024)
-            operation,filename = data.decode('utf-8').rstrip().split(',')
-            if operation == "write":
-                writefile(conn,filename)
-            elif operation == "read":
-                readfile(conn,filename)
+        try :
+            #accept new connection
+            conn,addr = s.accept()
+            cipher, sk, iv = new_connections(conn)
+            if Authentication(conn):
+                #get the command
+                data = conn.recv(1024)
+                operation,filename = data.decode('utf-8').rstrip().split(',')
+                if operation == "write":
+                    writefile(conn,filename)
+                elif operation == "read":
+                    readfile(conn,filename)
+                else:
+                    conn.send(str.encode("operation not supported!"))
             else:
-                conn.send(str.encode("operation not supported!"))
-        else:
-            print ("%s: Error - Authentication fail" %timestamp())
+                print ("%s: Error - Authentication fail" %timestamp())
 
-        conn.close()
-        print ("%s: connection with %s ended" %(timestamp(), str(addr)))
+            conn.close()
+            print ("%s: connection with %s ended" %(timestamp(), str(addr)))
+        except Exception as e:
+            print (e)
+            conn.close()
+            print ("%s: connection with %s ended" %(timestamp(), str(addr)))
+            continue;
 except Exception as e:
     print(e)

@@ -16,8 +16,6 @@ def socket_init(host,port):
     return client;
 
 
-
-
 def Authentication_challenge(conn):
     #get challenge
     challenge = conn.recv(1024).decode("utf-8")
@@ -41,49 +39,99 @@ def uploadfile(conn):
     #send file by block
     while True:
 
-        inputs = sys.stdin.buffer.read(1024)
-        if not inputs :
+        inStream = sys.stdin.buffer.read(16)
+        if not inStream:
             print("EOF")
             break;
-        conn.send(inputs)
+        if cipher == "aes128" or cipher =="aes256":
+            data = encrypt_data(sk,iv,inStream)
+            conn.send(data)
+
+        elif cipher == "null":
+            conn.send(inStream)
+
 
     return;
 
 def downloadfile(conn):
-    while True:
 
+    while True:
         inStream= conn.recv(16)
-        data = ""
-        msg =""
         if not inStream: break;
-        if cipher == "aes128" or cipher =="aes256":
+        if cipher == "aes128" or cipher == "aes256":
             data = decrypt_data(sk,iv,inStream)
-            msg += unpadder.update(data)
+            sys.stdout.buffer.write(data)
 
         elif cipher == "null":
-            pass
+            sys.stdout.buffer.write(inStream)
 
-    msg += unpadder.finalize()
-    print (msg)
-        # sys.stdout.buffer.write(data)
+
 
     return;
 
-def encrypt_data(sk,iv,msg):
+def encrypt_data(sk,iv,data):
+    #padding data
+    if len(data) < 16:
+        data= data_padder(data)
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     encryptor = cip.encryptor()
-    ct = encryptor.update(msg.encode()) + encryptor.finalize()
+    ct = encryptor.update(data) + encryptor.finalize()
     return ct;
 
 def decrypt_data(sk, iv, ct):
 
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     decryptor = cip.decryptor()
-    data = decryptor.update(ct) +decryptor.finalize()
+    padded_data = decryptor.update(ct) +decryptor.finalize()
 
+    #unpad data
+    data = data_unpadder(padded_data)
     return data;
 
+def data_padder (data):
+    padded_data = bytearray(data)
+    for x in range(len(data),16):
+        padded_data.append(16-len(data))
+    result = bytes(padded_data)
+    return result;
 
+def data_unpadder(padded_data):
+    temp =bytearray(padded_data)
+    padding_counts = 0
+    if ( 0 < temp [15] < 16 ):
+        for x in range(15,0,-1):
+            if temp[x] == temp[15]:
+                padding_counts += 1
+            else:
+                break;
+        if padding_counts == temp[15]:
+            for x in range(15,-1,-1):
+                if temp[x] == 255:
+                    del temp[x]
+                else:
+                    break;
+
+        else:
+            pass
+    data = bytes(temp)
+    return data;
+
+def key_init ():
+    if cipher not in ["aes128","aes256","null"]:
+        sys.stderr.write("selected cipher is not supported")
+        s.close()
+        sys.exit()
+    key = secret_key+nonce+"SK"
+    vector = secret_key+nonce+"IV"
+    sk256 = hashlib.sha256(key.encode("utf-8")).digest()
+    sk128 = (hashlib.sha256(key.encode("utf-8")).digest()) [:16]
+    iv = (hashlib.sha256(vector.encode("utf-8")).digest())[:16]
+    if cipher == "aes128":
+        return (sk128,iv)
+    elif cipher =="aes256":
+        return (sk256,iv)
+    else:
+        return (0,0)
 #===============================================================================
 #setting up arg
 try:
@@ -100,23 +148,13 @@ except:
 
 #setup socket
 backend =default_backend()
-padder = padding.PKCS7(128).padder()
-unpadder = padding.PKCS7(128).unpadder()
-
 nonce = ''.join(random.choices(string.ascii_uppercase+string.digits, k=16))
 
 s = socket_init(hostname,port)
-#setup sk,iv
-key = secret_key+nonce+"SK"
-vector = secret_key+nonce+"IV"
-
-sk = hashlib.sha256(key.encode("utf-8")).digest()
-iv = (hashlib.sha256(vector.encode("utf-8")).digest())[:16]
-if cipher not in ["aes128","aes256","null"]:
-    sys.stderr.write("selected cipher is not supported")
-    sys.exit()
 #send cipher and nonce
 s.send(str.encode(cipher+","+nonce))
+#setup sk,iv
+sk,iv = key_init()
 #complete the challenge
 if Authentication_challenge(s) == True:
     #request operation
