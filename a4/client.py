@@ -38,7 +38,7 @@ def uploadfile(conn):
     #send file by block
     while True:
 
-        inStream = sys.stdin.buffer.read(1024)
+        inStream = sys.stdin.buffer.read(16)
         if not inStream:
             print("EOF")
             break;
@@ -55,7 +55,7 @@ def uploadfile(conn):
 def downloadfile(conn):
 
     while True:
-        inStream= conn.recv(1024)
+        inStream= conn.recv(16)
         if not inStream: break;
         if cipher == "aes128" or cipher == "aes256":
             data = decrypt_data(sk,iv,inStream)
@@ -70,29 +70,21 @@ def downloadfile(conn):
 
 def encrypt_data(sk,iv,data):
     #init padding
-    ct = b''
-    info = [data[i:i+16] for i in range(0, len(data), 16)]
-    for x in range(0, len(info)):
-        data_chunk = info[x]
-        if len(data_chunk) < 16:
-            data = data_padder(data_chunk)
+    if len(data) < 16:
+        data = data_padder(data)
 
-        cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
-        encryptor = cip.encryptor()
-        ct += encryptor.update(data_chunk) + encryptor.finalize()
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    encryptor = cip.encryptor()
+    ct = encryptor.update(data) + encryptor.finalize()
+
     return ct;
-
 def decrypt_data(sk, iv, ct):
-    data=b''
-    info = [ct[i:i+16] for i in range(0, len(ct), 16)]
-    for x in range(0, len(info)):
-        data_chunk = info[x]
 
-        cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
-        decryptor = cip.decryptor()
-        padded_data = decryptor.update(data_chunk) +decryptor.finalize()
-        #unpad data
-        data += data_unpadder(padded_data)
+    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+    decryptor = cip.decryptor()
+    padded_data = decryptor.update(ct) +decryptor.finalize()
+    #unpad data
+    data = data_unpadder(padded_data)
     return data;
 
 def data_padder (data):
