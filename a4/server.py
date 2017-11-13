@@ -28,7 +28,7 @@ def readfile(conn, filename):
     conn.send(str.encode("OK"))
     #send file by block
     while True:
-        data = fd.read(16)
+        data = fd.read(1024)
         if data == b"":
             break;
         if cipher == "aes128" or cipher == "aes256":
@@ -138,22 +138,31 @@ def new_connections(conn):
 
 def encrypt_data(sk,iv,data):
     #init padding
-    old_data = data
-    if len(data) < 16:
-        data = data_padder(data)
+    ct = b""
+    info = [data[i:i+16] for i in range(0, len(data), 16)]
+    for x in range(0, len(info)):
+        data_chunk = info[x]
+        if len(data_chunk) < 16:
+            data = data_padder(data_chunk)
 
-    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
-    encryptor = cip.encryptor()
-    ct = encryptor.update(data) + encryptor.finalize()
+        cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+        encryptor = cip.encryptor()
+        ct += encryptor.update(data_chunk) + encryptor.finalize()
+
     return ct;
-
 def decrypt_data(sk, iv, ct):
-    cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
-    decryptor = cip.decryptor()
-    data = decryptor.update(ct) +decryptor.finalize()
-    #unpadd data
-    msg = data_unpadder(data)
-    return msg;
+    data=b''
+    info = [ct[i:i+16] for i in range(0, len(ct), 16)]
+    for x in range(0, len(info)):
+        data_chunk = info[x]
+
+        cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
+        decryptor = cip.decryptor()
+        padded_data = decryptor.update(data_chunk) +decryptor.finalize()
+        #unpad data
+        data += data_unpadder(padded_data)
+    return data;
+
 
 def data_padder (data):
     padded_data = bytearray(data)
