@@ -28,13 +28,20 @@ def readfile(conn, filename):
     conn.send(str.encode("OK"))
     #send file by block
     while True:
-        data = fd.read(16)
+        #read
+        data = fd.read(256)
+
         if data == b"":
             break;
         if cipher == "aes128" or cipher == "aes256":
+            #padding
+            if len(data) < 256:
+                data = data_padder(data)
+            #encrypt_data
             data= encrypt_data(sk,iv,data)
         else:
             pass
+        #send
         conn.send(data)
 
     return;
@@ -53,16 +60,29 @@ def writefile(conn,filename):
     #ack the process
     conn.send(str.encode("OK"))
     #write file by block
-    while True:
-        data = conn.recv(16)
+    if cipher == "aes128" or cipher == "aes256":
+        inStream = conn.recv(256)
+        while True:
+            if not inStream: break;
+            #decrypt_data
+            padded_data = decrypt_data(sk,iv,inStream)
+            next_inStream = conn.recv(256)
+            data = b''
 
-        if not data:
-            break;
-        if cipher == "aes128" or cipher == "aes256":
-            data = decrypt_data(sk,iv,data)
-        else:
-            pass
-        fd.write(data);
+            if not next_inStream:
+                #unpad data if this is last data
+                data = data_unpadder(padded_data)
+            else: data = padded_data
+            #write to file
+            fd.write(data)
+            inStream = next_inStream
+    elif cipher == "null":
+        while True:
+            data = conn.recv(256)
+            if not data: break;
+            fd.write(data)
+
+
 
     print("%s: status: success" %timestamp())
     conn.close();
@@ -137,9 +157,6 @@ def new_connections(conn):
     return (cipher, sk, iv);
 
 def encrypt_data(sk,iv,data):
-    #init padding
-    if len(data) < 16:
-        data = data_padder(data)
 
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     encryptor = cip.encryptor()
@@ -151,37 +168,29 @@ def decrypt_data(sk, iv, ct):
     cip = Cipher(algorithms.AES(sk),modes.CBC(iv), backend = backend)
     decryptor = cip.decryptor()
     padded_data = decryptor.update(ct) +decryptor.finalize()
-    #unpad data
-    data = data_unpadder(padded_data)
-    return data;
+
+    return padded_data;
 
 
 
 def data_padder (data):
     padded_data = bytearray(data)
-    for x in range(len(data),16):
-        padded_data.append(16-len(data))
+    for x in range(len(data),256):
+        padded_data.append(256-len(data))
     result = bytes(padded_data)
     return result;
 
 def data_unpadder(padded_data):
     temp =bytearray(padded_data)
     padding_counts = 0
-    if ( 0 < temp [15] < 16 ):
-        for x in range(15,0,-1):
-            if temp[x] == temp[15]:
-                padding_counts += 1
-            else:
-                break;
-        if padding_counts == temp[15]:
-            for x in range(15,-1,-1):
-                if temp[x] == 255:
-                    del temp[x]
-                else:
-                    break;
+    padded_value = temp[255]
+    for x in range(256-padded_value,256):
+        if temp[x] == padded_value:
+            padding_counts += 1
+        else: break;
+    if padding_counts == padded_value:
+        del temp[(256-padded_value):]
 
-        else:
-            pass
     data = bytes(temp)
     return data;
 
