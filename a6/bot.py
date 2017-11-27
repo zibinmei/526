@@ -1,5 +1,5 @@
 import sys
-
+import socket
 
 
 
@@ -12,3 +12,9 @@ try:
 except:
     print("invalid arguments: python3 bot.py <hostname> <port> <channel> <secret-phrase>")
     sys.exit()
+
+def connect:
+    global irc
+    irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    irc.connect((hostname, port))
+    return
