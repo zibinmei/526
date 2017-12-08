@@ -112,13 +112,12 @@ def move(masterName,hostname1,port1,channel1):
 
         # if same server PART channel
         else:
+            if joinChannel(irc,channel1) == False:
+                raise Exception("Cannot join channel")
             msg = "PART #" +channel+" \r\n"
             irc.send(msg.encode())
             indata = irc.recv(1024)
             inmsg = indata.decode("utf-8").split("\r\n")
-            print (inmsg)
-            if joinChannel(irc,channel1) == False:
-                raise Exception("Cannot join channel")
             # send success message
             msg = "PRIVMSG "+masterName+" :move success\r\n"
             irc.send(msg.encode())
